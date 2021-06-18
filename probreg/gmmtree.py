@@ -10,7 +10,7 @@ from .log import log
 
 EstepResult = namedtuple('EstepResult', ['moments'])
 MstepResult = namedtuple('MstepResult', ['transformation', 'q'])
-
+Parameters  = namedtuple('Parameters', ['priors', 'centers', 'covariances'])
 
 class GMMTree():
     """GMM Tree
@@ -69,6 +69,23 @@ class GMMTree():
         rot, t = so.twist_mul(x, trans_p.rot, trans_p.t)
         return MstepResult(tf.RigidTransformation(rot, t), q)
 
+    def inference(self, target, tree_level):
+        n_nodes = [int(8 * (1 - 8**i) / (1 - 8)) for i in np.arange(1,gt._tree_level+1)]
+        if tree_level == 1:
+            centers = np.array([row[1] for row in self._nodes])[:n_nodes[tree_level-1]]
+            shift = 0
+        else:
+            centers = np.array([row[1] for row in self._nodes])[n_nodes[tree_level-2]:n_nodes[tree_level-1]]
+            shift = n_nodes[tree_level-2]
+
+        labels = np.zeros(target.shape[0])
+        for i, t in enumerate(target):
+            distances = np.zeros(centers.shape[0])
+            for j, c in enumerate(centers):
+                distances[j] = np.linalg.norm(t - c)**2
+            labels[i] = np.argmin(distances) + shift
+        return labels
+
     def registration(self, target, maxiter=20, tol=1.0e-4):
         q = None
         for i in range(maxiter):
@@ -84,6 +101,39 @@ class GMMTree():
             q = res.q
         return MstepResult(self._tf_result.inverse(), res.q)
 
+def fit(source, callbacks=[], **kargs):
+    """GMMTree model fitting
+
+    Args:
+        source (numpy.ndarray): Source point cloud data.
+        callback (:obj:`list` of :obj:`function`, optional): Called after each iteration.
+            `callback(probreg.Transformation)`
+
+    Keyword Args:
+        tree_level (int, optional): Maximum depth level of GMM tree.
+        lambda_c (float, optional): Parameter that determine the pruning of GMM tree.
+        lambda_s (float, optional): Parameter that tolerance for building GMM tree.
+    """
+    cv = lambda x: np.asarray(x.points if isinstance(x, o3.geometry.PointCloud) else x)
+    gt = GMMTree(cv(source), **kargs)
+    gt.set_callbacks(callbacks)
+    priors = np.array([row[0] for row in gt._nodes])
+    centers = np.array([row[1] for row in gt._nodes])
+    covariances = np.array([row[2] for row in gt._nodes])
+    n_nodes = [int(8 * (1 - 8**i) / (1 - 8)) for i in np.arange(1,gt._tree_level+1)]
+    n_nodes[1:] = [y - x for x,y in zip(n_nodes,n_nodes[1:])]
+    return (gt, Parameters(priors, centers, covariances), n_nodes)
+
+def predict(gt, target, tree_level):
+    """Inference based on the given GMMTree
+
+    Args:
+        gt (GMMTree): GMM model
+        source (numpy.ndarray): Target point cloud data.
+    """
+    assert tree_level <= gt._tree_level and tree_level > 0, "tree_level starts at level 1 and goes up to the maximum level in the model"
+    cv = lambda x: np.asarray(x.points if isinstance(x, o3.geometry.PointCloud) else x)
+    return gt.inference(cv(target), tree_level)
 
 def registration_gmmtree(source, target, maxiter=20, tol=1.0e-4,
                          callbacks=[], **kargs):
