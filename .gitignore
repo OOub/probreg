@@ -13,3 +13,8 @@ work
 linux-64
 git_cache
 noarch
+probreg/.DS_Store
+
+.DS_Store
+
+examples/.ipynb_checkpoints/
