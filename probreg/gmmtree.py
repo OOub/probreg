@@ -70,7 +70,7 @@ class GMMTree():
         return MstepResult(tf.RigidTransformation(rot, t), q)
 
     def inference(self, target, tree_level):
-        n_nodes = [int(8 * (1 - 8**i) / (1 - 8)) for i in np.arange(1,gt._tree_level+1)]
+        n_nodes = [int(8 * (1 - 8**i) / (1 - 8)) for i in np.arange(1, self._tree_level+1)]
         if tree_level == 1:
             centers = np.array([row[1] for row in self._nodes])[:n_nodes[tree_level-1]]
             shift = 0
