@@ -73,17 +73,15 @@ class GMMTree():
         n_nodes = [int(8 * (1 - 8**i) / (1 - 8)) for i in np.arange(1, self._tree_level+1)]
         if tree_level == 1:
             centers = np.array([row[1] for row in self._nodes])[:n_nodes[tree_level-1]]
-            shift = 0
         else:
             centers = np.array([row[1] for row in self._nodes])[n_nodes[tree_level-2]:n_nodes[tree_level-1]]
-            shift = n_nodes[tree_level-2]
 
         labels = np.zeros(target.shape[0])
         for i, t in enumerate(target):
             distances = np.zeros(centers.shape[0])
             for j, c in enumerate(centers):
                 distances[j] = np.linalg.norm(t - c)**2
-            labels[i] = np.argmin(distances) + shift
+            labels[i] = np.argmin(distances)
         return labels
 
     def registration(self, target, maxiter=20, tol=1.0e-4):
