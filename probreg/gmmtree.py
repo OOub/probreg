@@ -7,10 +7,15 @@ from . import _gmmtree
 from . import transformation as tf
 from . import se3_op as so
 from .log import log
+from functools import partial
+from multiprocess import Pool
 
 EstepResult = namedtuple('EstepResult', ['moments'])
 MstepResult = namedtuple('MstepResult', ['transformation', 'q'])
 Parameters  = namedtuple('Parameters', ['priors', 'centers', 'covariances'])
+
+def bestcenter(d, centers):
+    return np.argmin(np.linalg.norm(centers - d, axis=1)**2)
 
 class GMMTree():
     """GMM Tree
@@ -70,17 +75,6 @@ class GMMTree():
         rot, t = so.twist_mul(x, trans_p.rot, trans_p.t)
         return MstepResult(tf.RigidTransformation(rot, t), q)
 
-    def inference(self, data, tree_level):
-        if tree_level == 1:
-            centers = np.array([row[1] for row in self._nodes])[:self.n_nodes[tree_level-1]]
-        else:
-            centers = np.array([row[1] for row in self._nodes])[self.n_nodes[tree_level-2]:self.n_nodes[tree_level-1]]
-
-        labels = np.zeros(data.shape[0])
-        for i, d in enumerate(data):
-            labels[i] = np.argmin(np.linalg.norm(centers - d, axis=1)**2)
-        return labels
-
     def registration(self, target, maxiter=20, tol=1.0e-4):
         q = None
         for i in range(maxiter):
@@ -119,7 +113,7 @@ def fit(source, callbacks=[], **kargs):
     n_nodes[1:] = [y - x for x,y in zip(n_nodes,n_nodes[1:])]
     return (gt, Parameters(priors, centers, covariances), n_nodes)
 
-def predict(gt, target, tree_level):
+def predict(gt, data, tree_level, parallel=False):
     """Inference based on the given GMMTree
 
     Args:
@@ -128,7 +122,21 @@ def predict(gt, target, tree_level):
     """
     assert tree_level <= gt._tree_level and tree_level > 0, "tree_level starts at level 1 and goes up to the maximum level in the model"
     cv = lambda x: np.asarray(x.points if isinstance(x, o3.geometry.PointCloud) else x)
-    return gt.inference(cv(target), tree_level)
+
+    if tree_level == 1:
+        centers = np.array([row[1] for row in gt._nodes])[:gt.n_nodes[tree_level-1]]
+    else:
+        centers = np.array([row[1] for row in gt._nodes])[gt.n_nodes[tree_level-2]:gt.n_nodes[tree_level-1]]
+
+    if parallel:
+        pool = Pool()
+        labels = pool.map(partial(bestcenter, centers=centers), data)
+    else:
+        labels = np.zeros(data.shape[0], dtype=int)
+        for i, d in enumerate(data):
+            labels[i] = np.argmin(np.linalg.norm(centers -d, axis=1)**2)
+
+    return labels
 
 def registration_gmmtree(source, target, maxiter=20, tol=1.0e-4,
                          callbacks=[], **kargs):
