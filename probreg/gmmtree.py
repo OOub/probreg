@@ -31,6 +31,7 @@ class GMMTree():
         self._tf_type = tf.RigidTransformation
         self._tf_result = self._tf_type(**tf_init_params)
         self._callbacks = []
+        self.n_nodes = [int(8 * (1 - 8**i) / (1 - 8)) for i in np.arange(1, self._tree_level+1)]
         if not self._source is None:
             self._nodes = _gmmtree.build_gmmtree(self._source,
                                                  self._tree_level,
@@ -69,19 +70,15 @@ class GMMTree():
         rot, t = so.twist_mul(x, trans_p.rot, trans_p.t)
         return MstepResult(tf.RigidTransformation(rot, t), q)
 
-    def inference(self, target, tree_level):
-        n_nodes = [int(8 * (1 - 8**i) / (1 - 8)) for i in np.arange(1, self._tree_level+1)]
+    def inference(self, data, tree_level):
         if tree_level == 1:
-            centers = np.array([row[1] for row in self._nodes])[:n_nodes[tree_level-1]]
+            centers = np.array([row[1] for row in self._nodes])[:self.n_nodes[tree_level-1]]
         else:
-            centers = np.array([row[1] for row in self._nodes])[n_nodes[tree_level-2]:n_nodes[tree_level-1]]
+            centers = np.array([row[1] for row in self._nodes])[self.n_nodes[tree_level-2]:self.n_nodes[tree_level-1]]
 
-        labels = np.zeros(target.shape[0])
-        for i, t in enumerate(target):
-            distances = np.zeros(centers.shape[0])
-            for j, c in enumerate(centers):
-                distances[j] = np.linalg.norm(t - c)**2
-            labels[i] = np.argmin(distances)
+        labels = np.zeros(data.shape[0])
+        for i, d in enumerate(data):
+            labels[i] = np.argmin(np.linalg.norm(centers - d, axis=1)**2)
         return labels
 
     def registration(self, target, maxiter=20, tol=1.0e-4):
