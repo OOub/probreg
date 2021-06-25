@@ -255,7 +255,7 @@ setup(
     ext_modules=ext_modules,
     install_requires=['pybind11>=2.2', 'open3d',
                       'six', 'transforms3d', 'scipy',
-                      'scikit-learn', 'matplotlib','multiprocess','functools'],
+                      'scikit-learn', 'matplotlib','multiprocess'],
     cmdclass={'build_ext': BuildExt},
     zip_safe=False,
 )
