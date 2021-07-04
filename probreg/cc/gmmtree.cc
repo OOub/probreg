@@ -107,6 +107,7 @@ NodeParamArray probreg::buildGmmTree(const MatrixX3& points,
 
     for (Integer l = 0; l < max_tree_level; ++l) {
         Float prev_q = 0.0;
+        auto iter = 0;
         while (true) {
             const NodeParamArray params =
                 gmmTreeEstep(points, nodes, parent_idx, current_idx, max_tree_level);
@@ -116,8 +117,10 @@ NodeParamArray probreg::buildGmmTree(const MatrixX3& points,
                 break;
             }
             prev_q = q;
+            iter++;
         }
         parent_idx = current_idx;
+        std::cout << "tree level " << l << " iters " << iter << std::endl;
     }
     return nodes;
 }
